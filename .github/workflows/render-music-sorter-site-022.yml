@@ -37,7 +37,7 @@ jobs:
           const dir=process.env.FRAME_DIR;
           const profile=process.argv[2]==='serve'?null:fs.mkdtempSync(path.join(dir,'browser-'));
           const delay=ms=>new Promise(r=>setTimeout(r,ms));
-          async function until(test){for(let i=0;i<180;i++){let r=await test();if(r)return;await delay(60)}throw Error('timeout '+test)}
+          async function until(test, attempts=180){for(let i=0;i<attempts;i++){let r=await test();if(r)return;await delay(60)}throw Error('timeout '+test)}
           const mock=`(() => {
            const data=[['Glass Current','Kite Array','Ambient',2024],['Northbound','Field Echo','Indie Rock',2022],['Lines of Light','Still Circuit','Electronic',2024],['Surface Tension','Moss Theater','Post-Rock',2021],['Paper Satellites','Slate / Sine','Indie Pop',2023],['Afterglow','Luma Signal','Ambient',2024],['Signal Room','Dusk Atlas','Electronica',2022],['Blue Hour','Low Meridian','Downtempo',2024],['Open Water','Aerial Geometry','Chillout',2023]];
            const p={id:'studio-demo',name:'Studio Library',sources:['/Music/Studio Library','/Music/Field Recordings'],destination:'/Music/Sorted Library',pattern:'{artist}/{year}/{title}',columns:null,lookupEnabled:false};
@@ -70,7 +70,7 @@ jobs:
              '--remote-debugging-port=0','--remote-debugging-address=127.0.0.1','--user-data-dir='+profile,'about:blank'],
              {stdio:['ignore','ignore','inherit']});
             const file=path.join(profile,'DevToolsActivePort');
-            await until(()=>fs.existsSync(file)); const port=fs.readFileSync(file,'utf8').split('\n')[0];
+            await until(()=>fs.existsSync(file), 1000); const port=fs.readFileSync(file,'utf8').split('\n')[0];
             const tabs=await(await fetch('http://127.0.0.1:'+port+'/json/list')).json();
             ws=new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);
             const pending=new Map();let seq=0;
