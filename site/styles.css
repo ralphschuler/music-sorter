@@ -1,0 +1,50 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f5ef;
+  --ink: #1c2925;
+  --muted: #4b5e56;
+  --rule: #ccd2c9;
+  --accent: #235c49;
+  --on-accent: #fff;
+  --panel: #e9ece4;
+  font-family: system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151e1a;
+    --ink: #edf5eb;
+    --muted: #bbcdc2;
+    --rule: #495b52;
+    --accent: #a3dfc3;
+    --on-accent: #172a22;
+    --panel: #232f29;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); }
+.frame { width: min(100% - 2.5rem, 56rem); margin-inline: auto; }
+a { color: var(--accent); text-underline-offset: .2em; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: .3em; border-radius: .125rem; }
+.skip { position: absolute; top: .5rem; left: .5rem; padding: .5rem .75rem; background: var(--bg); transform: translateY(-200%); }
+.skip:focus { transform: none; }
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem 1.25rem; padding-block: 1rem; border-bottom: 1px solid var(--rule); }
+.wordmark { font-weight: 750; color: var(--ink); text-decoration: none; }
+nav { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+section { padding-block: clamp(1.8rem, 6vw, 3rem); border-bottom: 1px solid var(--rule); }
+.intro { padding-block: clamp(2rem, 9vw, 5rem); }
+.eyebrow { margin: 0 0 .75rem; color: var(--muted); font-weight: 600; font-size: .875rem; }
+h1, h2 { margin: 0 0 1rem; line-height: 1.12; letter-spacing: -.025em; }
+h1 { font-size: clamp(2.45rem, 8vw, 5rem); max-width: 16ch; }
+h2 { font-size: clamp(1.55rem, 4vw, 2.1rem); }
+p { margin-block: 0 1rem; max-width: 67ch; color: var(--muted); }
+.lead { font-size: clamp(1.05rem, 2.4vw, 1.23rem); max-width: 57ch; }
+.button { display: inline-block; margin-top: .5rem; padding: .62rem .95rem; background: var(--accent); color: var(--on-accent); border-radius: .35rem; font-weight: 650; text-decoration: none; }
+ol { padding-inline-start: 1.55rem; margin: 0 0 1rem; }
+ol li { padding-inline-start: .25rem; margin-bottom: .75rem; max-width: 70ch; }
+ol li::marker { color: var(--accent); font-weight: 700; }
+.pattern { display: block; width: fit-content; max-width: 100%; margin-top: .45rem; padding: .2rem .5rem; overflow-wrap: anywhere; background: var(--panel); border-radius: .25rem; }
+.platforms { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: .7rem; }
+.platforms a { font-weight: 680; }
+.platforms span { display: block; color: var(--muted); }
+.bottom { color: var(--muted); padding-block: 1.1rem 1.6rem; font-size: .875rem; }

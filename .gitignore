@@ -1,0 +1,17 @@
+bin/
+obj/
+publish/
+.DS_Store
+*.user
+.TestResults/
+# Audio test fixtures and local configuration never belong in the repository.
+fixtures/
+*.mp3
+*.flac
+*.wav
+*.m4a
+*.aac
+*.ogg
+*.opus
+.env
+.env.*

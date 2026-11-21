@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>MusicSorter</AssemblyName>
+    <AssemblyTitle>Music Sorter</AssemblyTitle>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
+    <ProjectReference Include="../MusicSorter.Core/MusicSorter.Core.csproj" />
+    <ProjectReference Include="../MusicSorter.Metadata/MusicSorter.Metadata.csproj" />
+  </ItemGroup>
+</Project>

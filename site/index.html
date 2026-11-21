@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Music Sorter organizes a new copy of your music library on Windows and macOS. It leaves originals untouched.">
+  <title>Music Sorter</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="frame top">
+    <a class="wordmark" href="./">Music Sorter</a>
+    <nav aria-label="Project">
+      <a href="#download">Download</a>
+      <a href="https://github.com/ralphschuler/music-sorter">GitHub</a>
+    </nav>
+  </header>
+  <main id="main" class="frame">
+    <section class="intro" aria-labelledby="headline">
+      <p class="eyebrow">Windows and macOS desktop app</p>
+      <h1 id="headline">Sort a copy of your music library.</h1>
+      <p class="lead">Choose the folders and the naming pattern. Music Sorter builds an index on your computer and copies tracks to a separate folder without moving, deleting or retagging the originals.</p>
+      <a class="button" href="#download">Get Music Sorter</a>
+    </section>
+    <section class="workflow" aria-labelledby="workflow">
+      <h2 id="workflow">From folders to sorted files</h2>
+      <ol>
+        <li><strong>Choose your folders.</strong> Add one or more input folders and select a separate output folder.</li>
+        <li><strong>Save a naming pattern.</strong> Name the profile and use tokens to build the folder layout, for example:
+          <code class="pattern">{artistInitial}/{artist}/{title}</code>
+        </li>
+        <li><strong>Start sorting.</strong> Open the profile to see the live index. Review possible matches if you want, then copy.</li>
+      </ol>
+      <p>Files with identical bytes are skipped as duplicates. Different files with the same artist and title are kept separately. Optional audio fingerprints are suggestions, not a reason to discard a file.</p>
+    </section>
+    <section class="downloads" id="download" aria-labelledby="download-title">
+      <h2 id="download-title">Download</h2>
+      <p>Builds are available here after publication. The download and release links require access to the GitHub repository.</p>
+      <ul class="platforms">
+        <li><a href="https://github.com/ralphschuler/music-sorter/releases/latest/download/music-sorter-windows-x64.zip">Windows x64 ZIP</a>
+          <span>Extract the archive and open MusicSorter.exe.</span></li>
+        <li><a href="https://github.com/ralphschuler/music-sorter/releases/latest/download/music-sorter-macos-arm64.zip">macOS Apple Silicon ZIP</a>
+          <span>Extract the archive to get Music Sorter.app.</span></li>
+      </ul>
+      <p><a href="https://github.com/ralphschuler/music-sorter/releases/latest/download/SHA256SUMS.txt">SHA-256 checksums</a>
+        <span aria-hidden="true">·</span> <a href="https://github.com/ralphschuler/music-sorter/releases">All releases and prereleases</a></p>
+      <p>These archives are self-contained, not installers. Windows builds are unsigned. macOS builds are not notarized or signed with Developer ID. Your operating system may show a warning. Download only from the linked GitHub repository and check the archive hash.</p>
+      <p>If there is no stable release yet, check <a href="https://github.com/ralphschuler/music-sorter/releases">the release list</a>.</p>
+    </section>
+  </main>
+  <footer class="frame bottom">Scanning and sorting work locally. Online metadata searches only run when you request one.</footer>
+</body>
+</html>

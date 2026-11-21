@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/MusicSorter.Core/MusicSorter.Core.csproj" />
+  <Project Path="src/MusicSorter.Metadata/MusicSorter.Metadata.csproj" />
+  <Project Path="src/MusicSorter.Desktop/MusicSorter.Desktop.csproj" />
+  <Project Path="tests/MusicSorter.Smoke/MusicSorter.Smoke.csproj" />
+</Solution>
