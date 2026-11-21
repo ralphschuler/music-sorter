@@ -20,7 +20,8 @@ impl Test {
         let root =
             std::env::temp_dir().join(format!("music-sorter-engine-{}", uuid::Uuid::new_v4()));
         fs::create_dir(&root).unwrap();
-        let root = root.canonicalize().unwrap();
+        // Match the application's drive-prefix normalization on Windows.
+        let root = dunce::canonicalize(root).unwrap();
         let src = root.join("src");
         fs::create_dir(&src).unwrap();
         let output = root.join("dest");
@@ -211,7 +212,7 @@ fn invalid_paths_and_collisions_never_change_originals() {
     row[0].genre = "N/F".into();
     let review = t.engine.review(&p, &row).unwrap();
     let dst = PathBuf::from(review.rows[0].destination.as_ref().unwrap());
-    assert!(dst.starts_with(&t.output) && dst.ends_with("N_F/_NUL/.._escaped.wav"));
+    assert_eq!(dst, t.output.join("N_F").join("_NUL").join(".._escaped.wav"));
     fs::create_dir_all(dst.parent().unwrap()).unwrap();
     fs::write(&dst, b"existing").unwrap();
     assert_eq!(
