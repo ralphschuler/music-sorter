@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MusicSorter.Core;
@@ -44,35 +45,49 @@ internal sealed class MetadataDialog : Window
         Height = 610;
         MinWidth = 570;
         MinHeight = 550;
-        var head = new StackPanel { Spacing = 6 };
-        head.Children.Add(new TextBlock { Text = "Find missing tags", FontSize = 22, FontWeight = FontWeight.SemiBold });
-        head.Children.Add(Label(Path.GetFileName(track.Source)));
-        head.Children.Add(Label("Fill missing tags only after you choose a candidate. Your original audio file stays unchanged."));
-        if (fingerprint is not null)
-            head.Children.Add(Label($"Local similarity shortlist: {possibleMatches:N0} possible matches (up to 64 similar-duration files compared). This never skips a file."));
+        _results.Background = Studio.Paper;
+        _results.BorderThickness = new Thickness(0);
+        _results.ItemTemplate = new FuncDataTemplate<Choice>((candidate, _) =>
+        {
+            if (candidate is null) return null;
+            var title = candidate.Year == 0 ? candidate.Title : $"{candidate.Title} ({candidate.Year})";
+            var name = new TextBlock { Text = title, FontSize = 13, FontWeight = FontWeight.SemiBold,
+                Foreground = Studio.Ink, TextWrapping = TextWrapping.Wrap };
+            var detail = Label($"{candidate.Artist} · {candidate.Evidence}");
+            return new StackPanel { Spacing = 2, Margin = new Thickness(3, 4), Children = { name, detail } };
+        });
+
+        var header = new StackPanel { Spacing = 3, Margin = new Thickness(24, 15) };
+        header.Children.Add(new TextBlock { Text = "Find missing tags", FontSize = 21,
+            FontWeight = FontWeight.SemiBold, Foreground = Studio.Ink });
+        header.Children.Add(Label(Path.GetFileName(track.Source)));
+
         var terms = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 8 };
         terms.Children.Add(_artist);
         Grid.SetColumn(_title, 1);
         terms.Children.Add(_title);
-        head.Children.Add(terms);
-        head.Children.Add(_sendText);
-        head.Children.Add(_musicBrainz);
-        head.Children.Add(_sendFingerprint);
-        head.Children.Add(_acoustId);
-        head.Children.Add(Label("If tags are missing, check the suggested text taken from the filename before searching. Try MusicBrainz first; AcoustID requires a local fingerprint and an application key. Neither lookup uploads audio or its file path."));
+        var fields = new StackPanel { Spacing = 7 };
+        fields.Children.Add(terms);
+        fields.Children.Add(ConsentRow(_sendText, _musicBrainz));
+        fields.Children.Add(ConsentRow(_sendFingerprint, _acoustId));
+        fields.Children.Add(Label("Lookups never send audio or its file path. Only an accepted result changes missing tags, on the copy."));
+        if (fingerprint is not null)
+            fields.Children.Add(Label($"Local audio shortlist: {possibleMatches:N0} possible matches (up to 64 compared). This never skips a file."));
 
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        actions.Children.Add(_use);
+        var body = new Grid { Margin = new Thickness(24, 16, 24, 12),
+            RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 9 };
+        Add(body, fields, 0);
+        Add(body, Studio.Surface(_results), 1);
+        Add(body, _status, 2);
+
+        var actions = new StackPanel { Margin = new Thickness(24, 10), HorizontalAlignment = HorizontalAlignment.Right,
+            Orientation = Orientation.Horizontal, Spacing = 8 };
         actions.Children.Add(_close);
-        var layout = new Grid
-        {
-            Margin = new Thickness(20), RowSpacing = 9,
-            RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto")
-        };
-        Add(layout, head, 0);
-        Add(layout, _results, 1);
-        Add(layout, _status, 2);
-        Add(layout, actions, 3);
+        actions.Children.Add(_use);
+        var layout = new Grid { Background = Studio.Canvas, RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        Add(layout, Studio.Band(header, bottom: true), 0);
+        Add(layout, body, 1);
+        Add(layout, Studio.Band(actions, bottom: false), 2);
         Content = layout;
 
         _artist.TextChanging += (_, _) => TermsChanged();
@@ -195,7 +210,22 @@ internal sealed class MetadataDialog : Window
         _close.Content = idle ? "Close" : "Cancel lookup";
     }
 
-    private static TextBlock Label(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
+    private static TextBlock Label(string text) =>
+        new() { Text = text, FontSize = 13, Foreground = Studio.Muted, TextWrapping = TextWrapping.Wrap };
+
+    private static Control ConsentRow(CheckBox consent, Button action)
+    {
+        if (consent.Content is string text)
+            consent.Content = new TextBlock { Text = text, FontSize = 13, TextWrapping = TextWrapping.Wrap };
+        consent.VerticalAlignment = VerticalAlignment.Center;
+        action.VerticalAlignment = VerticalAlignment.Center;
+        action.FontSize = 13;
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        row.Children.Add(consent);
+        Grid.SetColumn(action, 1);
+        row.Children.Add(action);
+        return row;
+    }
 
     private static void Add(Grid grid, Control item, int row)
     {
