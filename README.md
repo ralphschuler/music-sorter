@@ -32,3 +32,7 @@ For release packaging on Windows:
 ```powershell
 dotnet publish src/MusicSorter.Desktop -c Release -r win-x64 --self-contained true
 ```
+
+## Licensed-file smoke test
+
+The optional end-to-end test accepts a locally prepared JSON array of four or five licensed audio files with `Path`, `Artist`, and `Title`. It needs FFmpeg and Chromaprint `fpcalc`. Run `dotnet run --project tests/MusicSorter.Smoke -- --licensed-fixtures fixtures/manifest.json`. On macOS use a canonical temporary path, such as `TMPDIR=/private/tmp`. Add `--live-lookup` only when sending the public fixture artist/title to MusicBrainz and, if an official AcoustID key is configured, its fingerprint and duration to AcoustID is appropriate. Audio files are never sent or checked into Git.

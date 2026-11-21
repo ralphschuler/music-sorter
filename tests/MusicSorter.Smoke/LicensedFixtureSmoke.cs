@@ -203,7 +203,7 @@ internal static class LicensedFixtureSmoke
         }
         catch (Exception ex) when (!ct.IsCancellationRequested && ex is HttpRequestException or IOException or InvalidDataException or JsonException or OperationCanceledException)
         {
-            Console.WriteLine($"MusicBrainz live: not verified ({ex.GetType().Name}).");
+            Console.WriteLine($"MusicBrainz live: not verified ({TransportDiagnostic(ex)}).");
         }
 
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ACOUSTID_API_KEY")))
@@ -220,9 +220,13 @@ internal static class LicensedFixtureSmoke
         }
         catch (Exception ex) when (!ct.IsCancellationRequested && ex is HttpRequestException or IOException or InvalidDataException or JsonException or OperationCanceledException)
         {
-            Console.WriteLine($"AcoustID live: not verified ({ex.GetType().Name}).");
+            Console.WriteLine($"AcoustID live: not verified ({TransportDiagnostic(ex)}).");
         }
     }
+
+    private static string TransportDiagnostic(Exception error) => error is HttpRequestException http
+        ? (http.StatusCode is { } status ? $"HTTP {(int)status}" : $"{http.HttpRequestError}, {http.InnerException?.GetType().Name ?? "no inner error"}")
+        : error.GetType().Name;
 
     private static async Task ReencodeWithoutTagsAsync(string input, string output, CancellationToken ct)
     {
