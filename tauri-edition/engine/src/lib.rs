@@ -1219,9 +1219,12 @@ mod parallel_export_tests {
     #[test]
     fn a_receipt_failure_publishes_no_later_staged_copies() {
         let s = Scenario::new();
+        // Use the same normalized root as export_inner. Windows canonicalize
+        // may leave a verbatim drive prefix on the test's raw output path.
+        let (_, receipt_root) = s.engine.folders(&s.profile).unwrap();
         let bad_ledger = s.engine.state().unwrap().join("receipts").join(format!(
             "adhoc-{}.json",
-            digest(path_key(&s.output).as_bytes())
+            digest(path_key(&receipt_root).as_bytes())
         ));
         let progress = Mutex::new(Vec::new());
         let export = s
