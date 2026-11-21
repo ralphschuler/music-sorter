@@ -1,0 +1,207 @@
+name: Render Music Sorter 0.2.2 website screenshots
+
+'on':
+  push:
+    branches: ['preview/music-sorter-site-022']
+    paths: ['.github/workflows/render-music-sorter-site-022.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    if: github.repository == 'ralphschuler/music-sorter' && github.event.repository.private
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 7d464dd1fab48617cea2f3c2222cd4051082afec
+          path: released
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: db6bf3e0046ce7c04663fb46556fee4737c63653
+          path: deployed
+          persist-credentials: true
+      - name: Render exact release UI with synthetic IPC fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          export FRAME_DIR="$(mktemp -d)"
+          export CHROME_BIN="$(command -v google-chrome || command -v chromium)"
+          cp -R released/tauri-edition/ui "$FRAME_DIR/release-source"
+          cat > "$FRAME_DIR/render.cjs" <<'NODE'
+          const fs=require('node:fs'), path=require('node:path'), http=require('node:http');
+          const {spawn}=require('node:child_process');
+          const dir=process.env.FRAME_DIR;
+          const profile=process.argv[2]==='serve'?null:fs.mkdtempSync(path.join(dir,'browser-'));
+          const delay=ms=>new Promise(r=>setTimeout(r,ms));
+          async function until(test){for(let i=0;i<180;i++){let r=await test();if(r)return;await delay(60)}throw Error('timeout '+test)}
+          const mock=`(() => {
+           const data=[['Glass Current','Kite Array','Ambient',2024],['Northbound','Field Echo','Indie Rock',2022],['Lines of Light','Still Circuit','Electronic',2024],['Surface Tension','Moss Theater','Post-Rock',2021],['Paper Satellites','Slate / Sine','Indie Pop',2023],['Afterglow','Luma Signal','Ambient',2024],['Signal Room','Dusk Atlas','Electronica',2022],['Blue Hour','Low Meridian','Downtempo',2024],['Open Water','Aerial Geometry','Chillout',2023]];
+           const p={id:'studio-demo',name:'Studio Library',sources:['/Music/Studio Library','/Music/Field Recordings'],destination:'/Music/Sorted Library',pattern:'{artist}/{year}/{title}',columns:null,lookupEnabled:false};
+           const tracks=data.map(([title,artist,genre,year],i)=>({source:'/Music/Studio Library/'+title+'.flac',title,artist,genre,year,format:'flac',sha256:(i+1).toString(16).repeat(64)}));
+           const snap={revision:1,tracks,indexing:false,completed:9,total:9};
+           window.__TAURI__={core:{invoke:async (cmd,args={})=>{
+             if(cmd==='list_profiles')return [p];
+             if(cmd==='open_profile'&&args.profileId===p.id)return snap;
+             if(cmd==='index_snapshot')return args.revision===1?{...snap,tracks:undefined}:snap;
+             throw Error('Unexpected capture command '+cmd);
+           }}};
+           window.button=label=>[...document.querySelectorAll('button')].find(x=>x.textContent.trim()===label);
+           window.press=label=>{const b=button(label);if(!b||b.disabled)throw Error(label);b.click();};
+          })();`;
+          const allow=new Set(['index.html','styles.css','app.js','bridge.js','dom.js','library.js','pattern.js']);
+          const server=http.createServer((req,res)=>{
+           const name=new URL(req.url,'http://localhost').pathname.slice(1)||'index.html';
+           if(name==='fixture-preview')return res.writeHead(200,{'Content-Type':'text/html'}).end('<!doctype html><html><body style="margin:0"><iframe title="Exact release fixture" style="display:block;width:1120px;height:740px;border:0" src="/index.html"></iframe></body></html>');
+           if(name==='fixture.js')return res.writeHead(200,{'Content-Type':'text/javascript'}).end(mock);
+           if(!allow.has(name))return res.writeHead(404).end();
+           const mime={js:'text/javascript',css:'text/css',html:'text/html'}[path.extname(name).slice(1)];
+           const bytes=fs.readFileSync(path.join(dir,'release-source',name));
+           return res.writeHead(200,{'Content-Type':mime}).end(name==='index.html'?bytes.toString().replace('<script type=','<script src="./fixture.js"></script><script type='):bytes);
+          });
+          if(process.argv[2]==='serve') {server.listen(0,'127.0.0.1',()=>console.log(server.address().port));} else (async()=>{
+           let child,ws;
+           try{
+            await new Promise((yes,no)=>{server.once('error',no);server.listen(0,'127.0.0.1',yes)});
+            child=spawn(process.env.CHROME_BIN,['--headless=new','--disable-dev-shm-usage','--no-first-run','--no-default-browser-check','--disable-background-networking',
+             '--remote-debugging-port=0','--remote-debugging-address=127.0.0.1','--user-data-dir='+profile,'about:blank'],
+             {stdio:['ignore','ignore','inherit']});
+            const file=path.join(profile,'DevToolsActivePort');
+            await until(()=>fs.existsSync(file)); const port=fs.readFileSync(file,'utf8').split('\n')[0];
+            const tabs=await(await fetch('http://127.0.0.1:'+port+'/json/list')).json();
+            ws=new WebSocket(tabs.find(t=>t.type==='page').webSocketDebuggerUrl);
+            const pending=new Map();let seq=0;
+            ws.addEventListener('message',e=>{let x=JSON.parse(e.data);if(!pending.has(x.id))return;let [a,b]=pending.get(x.id);pending.delete(x.id);x.error?b(Error(x.error.message)):a(x.result);});
+            await new Promise((a,b)=>{ws.addEventListener('open',a,{once:true});ws.addEventListener('error',b,{once:true});});
+            const cmd=(method,params={})=>new Promise((a,b)=>{const id=++seq;pending.set(id,[a,b]);ws.send(JSON.stringify({id,method,params}));});
+            const run=async expression=>{const r=await cmd('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
+            async function shot(name){
+              const size=await run("(async()=>{await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));return [innerWidth,innerHeight,Math.max(...[...document.querySelectorAll('main button, main input, .track-row, .example')].filter(x=>x.offsetParent!==null).map(x=>x.getBoundingClientRect().bottom))];})()");
+              if(size[0]!==1120||size[1]!==740||size[2]>740)throw Error('viewport '+size);
+              const {data}=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+              fs.writeFileSync(path.join(dir,'music-sorter-tauri-'+name+'.png'),Buffer.from(data,'base64'));
+            }
+            await cmd('Page.enable');
+            await cmd('Emulation.setDeviceMetricsOverride',{width:1120,height:740,deviceScaleFactor:1,mobile:false});
+            await cmd('Page.navigate',{url:'http://127.0.0.1:'+server.address().port});
+            await until(()=>run("Boolean(window.button && button('Open'))"));
+            await run("press('Open')");
+            await until(()=>run("document.querySelectorAll('.track-row').length===9 && !button('Start sorting').disabled"));
+            await run("[...document.querySelectorAll('.track-row')].find(r=>r.textContent.includes('Blue Hour')).click();document.activeElement.blur()");
+            await shot('index');
+            await run("press('Edit profile')");
+            await until(()=>run("Boolean(window.button && button('Continue'))"));
+            await run("press('Continue')");
+            await until(()=>run("document.querySelector('.example')?.textContent.includes('Glass Current.flac')"));
+            await run("document.activeElement.blur()");
+            await shot('setup');
+            console.log('Both exact-release views rendered offscreen at 1120×740.');
+           }finally{
+            if(ws)ws.close();
+            if(child){child.kill();await Promise.race([new Promise(r=>child.once('exit',r)),delay(1300)]);}
+            server.close();
+           }
+          })().catch(e=>{console.error(e);process.exitCode=1});
+          NODE
+          node "$FRAME_DIR/render.cjs"
+          mkdir -p deployed/site/images
+          cp "$FRAME_DIR"/music-sorter-tauri-*.png deployed/site/images/
+          cat > deployed/site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta name="description" content="Music Sorter is a local Windows, macOS and Linux app for indexing music and copying it into a new folder structure. Your originals stay untouched.">
+            <title>Music Sorter · A local music organizer</title>
+            <link rel="stylesheet" href="./styles.css">
+          </head>
+          <body>
+            <a class="skip" href="#main">Skip to content</a>
+            <header class="shell masthead" id="top">
+              <a class="wordmark" href="./">
+                <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+                Music Sorter
+              </a>
+              <nav aria-label="Page">
+                <a href="#workflow">How it works</a>
+                <a href="#builds">Builds</a>
+              </nav>
+            </header>
+          
+            <main class="shell" id="main">
+              <section class="hero" aria-labelledby="headline">
+                <div class="hero-copy">
+                  <h1 id="headline">Your music,<br>in order.</h1>
+                  <div class="hero-aside">
+                    <p>Index a music library, choose where each track belongs, and copy it into a new folder structure. Your originals stay exactly where they are.</p>
+                    <a class="primary" href="#workflow">See how it works</a>
+                  </div>
+                </div>
+                <figure class="index-view">
+                  <img src="./images/music-sorter-tauri-index.png" width="1120" height="740" alt="The Music Sorter 0.2.2 live index, showing a sample profile and its indexed tracks." fetchpriority="high" decoding="async">
+                  <figcaption class="caption">
+                    <span>Live index · Music Sorter 0.2.2 · Sample library</span>
+                    <a href="./images/music-sorter-tauri-index.png">Open full-size screenshot</a>
+                  </figcaption>
+                </figure>
+              </section>
+          
+              <section class="section" id="workflow" aria-labelledby="workflow-title">
+                <h2 id="workflow-title">How it works</h2>
+                <div class="workflow">
+                  <ol class="steps">
+                    <li>
+                      <h3>Choose your folders</h3>
+                      <p>Add one or more inputs and one separate output.</p>
+                    </li>
+                    <li>
+                      <h3>Set the naming pattern</h3>
+                      <p>Save a profile with the folder layout you want.</p>
+                      <code>{artistInitial}/{artist}/{title}</code>
+                    </li>
+                    <li>
+                      <h3>Start sorting</h3>
+                      <p>Open the live index, preview the copy plan and check variants or conflicts, then start sorting.</p>
+                    </li>
+                  </ol>
+                  <figure class="setup-view">
+                    <img src="./images/music-sorter-tauri-setup.png" width="1120" height="740" alt="The Music Sorter 0.2.2 profile wizard, showing the naming-pattern chips and a folder preview." loading="lazy" decoding="async">
+                    <figcaption class="caption">Profile setup · Music Sorter 0.2.2 · Sample data</figcaption>
+                  </figure>
+                </div>
+                <p class="principle">Byte-identical files are skipped. Different files with the same artist and title are kept separately. Audio fingerprint matches are suggestions, not a reason to discard a file.</p>
+              </section>
+          
+              <section class="section download" id="builds" aria-labelledby="builds-title">
+                <div>
+                  <h2 id="builds-title">Builds</h2>
+                  <p>Music Sorter 0.2.2 is available for Windows x64, macOS (Apple Silicon and Intel), and Linux x64.</p>
+                </div>
+                <div>
+                  <a href="https://github.com/ralphschuler/music-sorter/releases/tag/tauri-v0.2.2">View Music Sorter 0.2.2 on GitHub</a>
+                  <p class="trust-note">The GitHub repository is private. You’ll need access to download a build.</p>
+                </div>
+              </section>
+            </main>
+          
+            <footer class="shell footer">
+              <p>Local scanning and sorting. Online metadata lookup is optional.</p>
+              <a href="https://github.com/ralphschuler/music-sorter">GitHub repository</a>
+            </footer>
+          </body>
+          </html>
+          HTML
+          cd deployed
+          file site/images/music-sorter-tauri-*.png
+          sha256sum site/images/music-sorter-tauri-*.png
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- site/index.html site/images/music-sorter-tauri-index.png site/images/music-sorter-tauri-setup.png
+          git diff --cached --check
+          test "$(git diff --cached --name-only | wc -l)" -eq 3
+          git commit -m 'Show the released Tauri UI on the Music Sorter website'
+          git push origin HEAD:refs/heads/preview/music-sorter-site-022-assets
