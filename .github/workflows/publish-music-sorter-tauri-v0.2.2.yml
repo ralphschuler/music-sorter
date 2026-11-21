@@ -1,0 +1,102 @@
+name: Publish verified Music Sorter Tauri 0.2.2
+
+'on':
+  push:
+    branches: ['publish/music-sorter-tauri-v0.2.2']
+    paths: ['.github/workflows/publish-music-sorter-tauri-v0.2.2.yml']
+
+concurrency:
+  group: publish-music-sorter-tauri-v0.2.2
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    if: github.repository == 'ralphschuler/music-sorter' && github.event.repository.private
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ralphschuler/music-sorter
+      RUN: '44913446851'
+      SOURCE: 7d464dd1fab48617cea2f3c2222cd4051082afec
+      TAG: tauri-v0.2.2
+    steps:
+      - name: Check successful build and exact revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$REPO" --jq .private)" = true
+          gh api "repos/$REPO/actions/runs/$RUN" | jq -e --arg sha "$SOURCE" '
+            .head_branch == "release/tauri-v0.2.2" and .head_sha == $sha and
+            .status == "completed" and .conclusion == "success"'
+          gh api "repos/$REPO/actions/runs/$RUN/jobs" | jq -e '
+            .total_count == 4 and all(.jobs[]; .conclusion == "success")'
+          gh api "repos/$REPO/actions/runs/$RUN/artifacts" | jq -e --arg sha "$SOURCE" '
+            ([.artifacts[].name] | sort) ==
+              ["music-sorter-linux-x64","music-sorter-macos-arm64","music-sorter-macos-intel","music-sorter-windows-x64"] and
+            all(.artifacts[]; .expired == false and .workflow_run.head_sha == $sha)'
+      - name: Validate and checksum the four packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/download" "$RUNNER_TEMP/release"
+          gh run download "$RUN" --repo "$REPO" --dir "$RUNNER_TEMP/download"
+          cd "$RUNNER_TEMP/download"
+          shopt -s nullglob
+          win=(music-sorter-windows-x64/*-setup.exe)
+          arm=(music-sorter-macos-arm64/*.zip)
+          intel=(music-sorter-macos-intel/*.zip)
+          linux=(music-sorter-linux-x64/*.AppImage)
+          test "${#win[@]}" -eq 1
+          test "${#arm[@]}" -eq 1
+          test "${#intel[@]}" -eq 1
+          test "${#linux[@]}" -eq 1
+          test "$(head -c 2 "${win[0]}")" = MZ
+          test "$(stat -c %s "${win[0]}")" -gt 52428800
+          test "$(od -An -tx1 -N4 "${linux[0]}" | tr -d '[:space:]')" = 7f454c46
+          test "$(od -An -tx1 -j8 -N3 "${linux[0]}" | tr -d '[:space:]')" = 414902
+          unzip -tq "${arm[0]}"
+          unzip -tq "${intel[0]}"
+          dest="$RUNNER_TEMP/release"
+          cp "${win[0]}" "$dest/Music-Sorter-0.2.2-Windows-x64-setup.exe"
+          cp "${arm[0]}" "$dest/Music-Sorter-0.2.2-macOS-arm64.zip"
+          cp "${intel[0]}" "$dest/Music-Sorter-0.2.2-macOS-x64.zip"
+          cp "${linux[0]}" "$dest/Music-Sorter-0.2.2-Linux-x64.AppImage"
+          cd "$dest"
+          sha256sum Music-Sorter-* > SHA256SUMS
+          sha256sum -c SHA256SUMS
+      - name: Publish exact verified assets in the private repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/release"
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "An existing release needs separate verification; never overwrite it."
+            exit 1
+          fi
+          cat > notes.md <<'EOF'
+          First packaged Tauri/Rust release. Local audio fingerprinting, profile-based sorting, background copies with progress, and optional AcoustID lookup. No key or music files are included.
+
+          - Windows x64: NSIS setup with offline WebView2 included. The installer is unsigned.
+          - macOS: Apple Silicon (arm64) and Intel (x64) ZIPs. The app is ad-hoc signed and not notarized.
+          - Linux x64: AppImage built on Ubuntu 22.04. Make it executable; if FUSE is unavailable, use APPIMAGE_EXTRACT_AND_RUN=1.
+          - SHA256SUMS contains the checksums for the four downloads.
+
+          Built from the successful [four-platform CI run](https://github.com/ralphschuler/music-sorter/actions/runs/44913446851).
+          EOF
+          gh release create "$TAG" --repo "$REPO" --target "$SOURCE" --draft \
+            --title 'Music Sorter 0.2.2' --notes-file notes.md Music-Sorter-* SHA256SUMS
+          gh release view "$TAG" --repo "$REPO" --json isDraft,targetCommitish,assets > release.json
+          jq -e --arg sha "$SOURCE" '.isDraft and .targetCommitish == $sha and (.assets|length)==5' release.json
+          download="$(mktemp -d "$RUNNER_TEMP/check.XXXXXX")"
+          gh release download "$TAG" --repo "$REPO" --dir "$download" --pattern '*'
+          cmp SHA256SUMS "$download/SHA256SUMS"
+          (cd "$download"; sha256sum -c SHA256SUMS)
+          gh release edit "$TAG" --repo "$REPO" --draft=false
+          gh release view "$TAG" --repo "$REPO" --json isDraft,url,assets | jq -e '
+            .isDraft == false and (.assets | length) == 5'
+          test "$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.sha)" = "$SOURCE"
