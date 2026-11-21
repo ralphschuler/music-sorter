@@ -21,7 +21,9 @@ impl Test {
             std::env::temp_dir().join(format!("music-sorter-engine-{}", uuid::Uuid::new_v4()));
         fs::create_dir(&root).unwrap();
         // Match the application's drive-prefix normalization on Windows.
-        let root = dunce::canonicalize(root).unwrap();
+        let root = root.canonicalize().unwrap();
+        #[cfg(windows)]
+        let root = dunce::simplified(&root).to_path_buf();
         let src = root.join("src");
         fs::create_dir(&src).unwrap();
         let output = root.join("dest");
