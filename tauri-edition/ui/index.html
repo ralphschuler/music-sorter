@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Music Sorter</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <header class="appbar">
+    <button class="wordmark plain" id="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 14h3v6H3zM8 9h3v11H8zM13 5h3v15h-3zM18 11h3v9h-3z"/></svg> Music Sorter</button>
+    <nav aria-label="Application"><button class="plain" id="profiles-nav">Profiles</button><button class="plain" id="settings-nav">Settings</button></nav>
+  </header>
+  <main id="view" tabindex="-1"></main>
+  <div class="announcement" id="announcement" role="status" aria-live="polite"></div>
+</body>
+</html>

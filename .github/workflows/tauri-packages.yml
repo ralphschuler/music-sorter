@@ -1,0 +1,120 @@
+name: Build Music Sorter installers
+
+'on':
+  workflow_dispatch:
+  push:
+    branches: ['release/tauri-*']
+    paths: ['tauri-edition/**', '.github/workflows/tauri-packages.yml']
+  pull_request:
+    paths: ['tauri-edition/**', '.github/workflows/tauri-packages.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            artifact: music-sorter-windows-x64
+            package-path: tauri-edition/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
+          - os: macos-15
+            target: aarch64-apple-darwin
+            bundles: app
+            artifact: music-sorter-macos-arm64
+            package-path: tauri-edition/artifacts/*.zip
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            bundles: app
+            artifact: music-sorter-macos-intel
+            package-path: tauri-edition/artifacts/*.zip
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage
+            artifact: music-sorter-linux-x64
+            package-path: tauri-edition/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install Linux build and smoke-test dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libdbus-1-dev libssl-dev patchelf file xvfb xauth
+      - name: Install the Rust target
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: rustup target add "$TARGET"
+      - name: Test Rust and check embedded UI syntax
+        shell: bash
+        working-directory: tauri-edition
+        run: |
+          set -euo pipefail
+          cargo test --locked --manifest-path src-tauri/Cargo.toml
+          cargo test --locked --manifest-path engine/Cargo.toml
+          for script in ui/*.js; do node --input-type=module --check < "$script"; done
+      - name: Build the single-file installer
+        shell: bash
+        working-directory: tauri-edition
+        env:
+          TARGET: ${{ matrix.target }}
+          BUNDLES: ${{ matrix.bundles }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == "macOS" ]]; then export APPLE_SIGNING_IDENTITY=-; fi
+          npx --yes --package=@tauri-apps/cli@2.12.6 tauri build --target "$TARGET" --bundles "$BUNDLES" -- --locked
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            STAGE="$(mktemp -d)"
+            APP="$STAGE/Music Sorter.app"
+            ditto --norsrc --noextattr --noacl "src-tauri/target/$TARGET/release/bundle/macos/Music Sorter.app" "$APP"
+            codesign --force --sign - "$APP"
+            codesign --verify --strict "$APP"
+            mkdir -p artifacts
+            ARCH="${TARGET%-apple-darwin}"
+            FILE="artifacts/Music-Sorter-macOS-$ARCH.zip"
+            BIN="$APP/Contents/MacOS/music-sorter"
+            [[ "$(lipo -archs "$BIN")" == "$ARCH" ]]
+            ditto -c -k --keepParent "$APP" "$FILE"
+            unzip -t "$FILE"
+          fi
+      - name: Verify Windows installer executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: tauri-edition
+        run: |
+          $installers = @(Get-ChildItem src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe)
+          if ($installers.Count -ne 1 -or $installers[0].Length -lt 50MB) { throw 'Expected one installer with an embedded WebView2 runtime.' }
+          $file = [IO.File]::OpenRead($installers[0].FullName)
+          try {
+            if ($file.ReadByte() -ne 77 -or $file.ReadByte() -ne 90) { throw 'Missing Windows PE header.' }
+          } finally { $file.Dispose() }
+      - name: Smoke-test the Linux AppImage
+        if: runner.os == 'Linux'
+        shell: bash
+        working-directory: tauri-edition
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage)
+          [[ ${#files[@]} -eq 1 ]]
+          IMAGE="$(realpath "${files[0]}")"
+          TEST_HOME="$(mktemp -d)"
+          export XDG_DATA_HOME="$TEST_HOME/data" XDG_CONFIG_HOME="$TEST_HOME/config" XDG_CACHE_HOME="$TEST_HOME/cache"
+          export APPIMAGE_EXTRACT_AND_RUN=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
+          rc=0
+          timeout 20s xvfb-run -a "$IMAGE" > "$TEST_HOME/startup.log" 2>&1 || rc=$?
+          cat "$TEST_HOME/startup.log"
+          test "$rc" -eq 124
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.package-path }}
+          if-no-files-found: error
