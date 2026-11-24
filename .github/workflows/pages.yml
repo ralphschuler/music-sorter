@@ -25,6 +25,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Build latest complete stable-download manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          release="$(gh api "repos/$GH_REPO/releases" --paginate | jq -ce '
+            map(select(.draft == false and .prerelease == false)
+              | select([.assets[].name] as $names |
+                ($names | any(test("^Music-Sorter-[0-9]+\\.[0-9]+\\.[0-9]+-Windows-x64-setup\\.exe$"))) and
+                ($names | any(test("^Music-Sorter-[0-9]+\\.[0-9]+\\.[0-9]+-macOS-arm64\\.zip$"))) and
+                ($names | any(test("^Music-Sorter-[0-9]+\\.[0-9]+\\.[0-9]+-macOS-x64\\.zip$"))) and
+                ($names | any(test("^Music-Sorter-[0-9]+\\.[0-9]+\\.[0-9]+-Linux-x64\\.AppImage$"))))) | .[0]')"
+          test "$release" != null
+          printf '%s' "$release" | jq -e '{tag: .tag_name, name: .name, assets: {
+            windows: (.assets[] | select(.name | test("-Windows-x64-setup\\.exe$")) | {name, url: .browser_download_url}),
+            macosArm: (.assets[] | select(.name | test("-macOS-arm64\\.zip$")) | {name, url: .browser_download_url}),
+            macosIntel: (.assets[] | select(.name | test("-macOS-x64\\.zip$")) | {name, url: .browser_download_url}),
+            linux: (.assets[] | select(.name | test("-Linux-x64\\.AppImage$")) | {name, url: .browser_download_url})
+          }}' > site/downloads.json
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:

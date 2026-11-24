@@ -69,6 +69,15 @@ h2 { font-size: clamp(1.95rem, 4.2vw, 3.35rem); letter-spacing: -.038em; font-we
 
 .download { display: grid; grid-template-columns: minmax(0, .72fr) minmax(0, 1.28fr); gap: clamp(1rem, 5vw, 5rem); }
 .download h2 + p { color: var(--text); max-width: 37ch; margin-top: .65rem; }
+.download-action { align-self: center; }
+.split-download { display: inline-flex; align-items: stretch; }
+.split-download .primary { margin-top: 0; border-right: 1px solid color-mix(in srgb, #fff 45%, transparent); }
+.download-menu-button { min-width: 2.75rem; border: 0; background: var(--accent); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.download-menu-button:hover, .download-menu-button:focus-visible { text-decoration: underline; outline-offset: 2px; }
+.download-menu { display: grid; width: min(100%, 27rem); margin-top: .35rem; border: 1px solid var(--rule); background: var(--paper); }
+.download-menu[hidden] { display: none; }
+.download-menu a { padding: .65rem .8rem; border-top: 1px solid var(--rule); }
+.download-menu a:first-child { border-top: 0; }
 .trust-note { margin-top: .45rem; color: var(--muted); font-size: .875rem; max-width: 63ch; }
 .footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .6rem 1rem; border-top: 1px solid var(--ink); padding-block: 1rem 1.75rem; font-size: .875rem; color: var(--muted); }
 

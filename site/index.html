@@ -69,9 +69,15 @@
         <h2 id="builds-title">Builds</h2>
         <p>Music Sorter 0.3.0 is available for Windows x64, macOS (Apple Silicon and Intel), and Linux x64. The desktop app follows your system language for English, German, Spanish, and French, with English as its fallback.</p>
       </div>
-      <div>
-        <a href="https://github.com/ralphschuler/music-sorter/releases/tag/tauri-v0.3.0">View Music Sorter 0.3.0 on GitHub</a>
-        <p class="trust-note">The GitHub repository is private. You’ll need access to download a build.</p>
+      <div class="download-action" data-downloads>
+        <div class="split-download" role="group" aria-label="Download Music Sorter">
+          <a class="primary" id="primary-download" href="https://github.com/ralphschuler/music-sorter/releases" aria-describedby="download-status">Finding the latest download…</a>
+          <button class="download-menu-button" id="download-options" type="button" aria-label="Choose a different download" aria-haspopup="true" aria-controls="download-menu" aria-expanded="false">▾</button>
+        </div>
+        <div class="download-menu" id="download-menu" hidden></div>
+        <p class="trust-note" id="download-status" role="status">Checking the latest stable release.</p>
+        <p class="trust-note"><a href="https://github.com/ralphschuler/music-sorter">View the repository on GitHub</a></p>
+        <noscript><p class="trust-note">JavaScript is needed to select a platform. <a href="https://github.com/ralphschuler/music-sorter/releases">Open releases on GitHub</a>.</p></noscript>
       </div>
     </section>
   </main>
@@ -80,5 +86,6 @@
     <p>Local scanning and sorting. Online metadata lookup is optional.</p>
     <a href="https://github.com/ralphschuler/music-sorter">GitHub repository</a>
   </footer>
+  <script type="module" src="./downloads.js"></script>
 </body>
 </html>
