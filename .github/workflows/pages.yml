@@ -4,6 +4,8 @@ name: Deploy project website
   push:
     branches: [main]
     paths: ['site/**', '.github/workflows/pages.yml']
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -15,7 +17,7 @@ concurrency:
 
 jobs:
   site:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'release'
     permissions:
       contents: read
       pages: read
@@ -25,6 +27,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'release' && github.event.repository.default_branch || github.sha }}
       - name: Build latest complete stable-download manifest
         shell: bash
         env:
