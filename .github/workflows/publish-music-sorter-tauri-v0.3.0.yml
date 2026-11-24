@@ -1,0 +1,69 @@
+name: Publish verified Music Sorter Tauri 0.3.0
+
+on:
+  push:
+    branches: ['publish/music-sorter-tauri-v0.3.0']
+    paths: ['.github/workflows/publish-music-sorter-tauri-v0.3.0.yml']
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ralphschuler/music-sorter
+      RUN: '45457702970'
+      SOURCE: 7ad4155ce73a16ba91acb0fcf9be6decb6aca5b3
+      TAG: tauri-v0.3.0
+    steps:
+      - name: Verify the exact successful package run
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/actions/runs/$RUN" | jq -e --arg sha "$SOURCE" '
+            .head_sha == $sha and .status == "completed" and .conclusion == "success"'
+          gh api "repos/$REPO/actions/runs/$RUN/jobs" | jq -e '
+            .total_count == 4 and all(.jobs[]; .conclusion == "success")'
+          gh api "repos/$REPO/actions/runs/$RUN/artifacts" | jq -e --arg sha "$SOURCE" '
+            ([.artifacts[].name] | sort) == ["music-sorter-linux-x64","music-sorter-macos-arm64","music-sorter-macos-intel","music-sorter-windows-x64"] and
+            all(.artifacts[]; .expired == false and .workflow_run.head_sha == $sha)'
+      - name: Download, validate and checksum the four packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/music-sorter-release"
+          mkdir -p "$root/download" "$root/dist"
+          gh run download "$RUN" --repo "$REPO" --dir "$root/download"
+          cd "$root/download"
+          win=(music-sorter-windows-x64/*-setup.exe); arm=(music-sorter-macos-arm64/*.zip); intel=(music-sorter-macos-intel/*.zip); linux=(music-sorter-linux-x64/*.AppImage)
+          test "${#win[@]}" -eq 1 && test "${#arm[@]}" -eq 1 && test "${#intel[@]}" -eq 1 && test "${#linux[@]}" -eq 1
+          test "$(head -c 2 "${win[0]}")" = MZ
+          test "$(stat -c %s "${win[0]}")" -gt 52428800
+          test "$(od -An -tx1 -N4 "${linux[0]}" | tr -d '[:space:]')" = 7f454c46
+          unzip -tq "${arm[0]}" && unzip -tq "${intel[0]}"
+          cp "${win[0]}" "$root/dist/Music-Sorter-0.3.0-Windows-x64-setup.exe"
+          cp "${arm[0]}" "$root/dist/Music-Sorter-0.3.0-macOS-arm64.zip"
+          cp "${intel[0]}" "$root/dist/Music-Sorter-0.3.0-macOS-x64.zip"
+          cp "${linux[0]}" "$root/dist/Music-Sorter-0.3.0-Linux-x64.AppImage"
+          cd "$root/dist"; sha256sum Music-Sorter-* > SHA256SUMS; sha256sum -c SHA256SUMS
+      - name: Create the one public release
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/music-sorter-release/dist"
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then echo "Refusing to overwrite an existing release." >&2; exit 1; fi
+          cat > "$RUNNER_TEMP/notes.md" <<'EOF'
+          Multilingual Music Sorter release: English, German, Spanish and French; the initial language follows the system locale with English fallback.
+
+          - Windows x64: NSIS setup with offline WebView2.
+          - macOS: Apple Silicon and Intel ZIPs.
+          - Linux x64: AppImage.
+          - SHA256SUMS contains hashes for all four downloads.
+          EOF
+          cd "$root"
+          gh release create "$TAG" --repo "$REPO" --target "$SOURCE" --title 'Music Sorter 0.3.0' --notes-file "$RUNNER_TEMP/notes.md" Music-Sorter-* SHA256SUMS
+          gh release view "$TAG" --repo "$REPO" --json isDraft,targetCommitish,assets,url | jq -e --arg sha "$SOURCE" '.isDraft == false and .targetCommitish == $sha and (.assets | length) == 5'
