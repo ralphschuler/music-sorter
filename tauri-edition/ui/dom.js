@@ -1,5 +1,8 @@
+import {t} from "./i18n.js";
+
 export const view = document.getElementById("view");
 const announcement = document.getElementById("announcement");
+export const raw = value => document.createTextNode(String(value ?? ""));
 
 export function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -10,13 +13,13 @@ export function el(tag, attrs = {}, ...children) {
     else node.setAttribute(key, value);
   }
   for (const child of children.flat()) {
-    if (child != null) node.append(child);
+    if (child != null) node.append(typeof child === "string" ? t(child) : child);
   }
   return node;
 }
 
 export function btn(label, action, attrs = {}) {
-  const button = el("button", {type: "button", ...attrs}, label);
+  const button = el("button", {type: "button", ...attrs}, t(label));
   button.addEventListener("click", action);
   return button;
 }

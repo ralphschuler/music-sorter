@@ -1,14 +1,15 @@
-import {btn, dirName, el, fileName, glyph, heading, replaceScreen, speak} from "./dom.js";
+import {btn, dirName, el, fileName, glyph, heading, raw, replaceScreen, speak} from "./dom.js";
+import {t} from "./i18n.js";
 
 const columns = [
-  ["title", "Title", 220, t => t.title || fileName(t.source)],
-  ["artist", "Artist", 170, t => t.artist],
-  ["genre", "Genre", 128, t => t.genre],
-  ["year", "Year", 70, t => t.year || null],
-  ["filename", "Filename", 225, t => fileName(t.source)],
-  ["format", "Format", 94, t => String(t.format || fileName(t.source).split(".").at(-1) || "").toUpperCase()],
-  ["source", "Source folder", 290, t => dirName(t.source)],
-  ["sha256", "SHA-256", 320, t => t.sha256]
+  ["title", "Title", 220, track => track.title || fileName(track.source)],
+  ["artist", "Artist", 170, track => track.artist],
+  ["genre", "Genre", 128, track => track.genre],
+  ["year", "Year", 70, track => track.year || null],
+  ["filename", "Filename", 225, track => fileName(track.source)],
+  ["format", "Format", 94, track => String(track.format || fileName(track.source).split(".").at(-1) || "").toUpperCase()],
+  ["source", "Source folder", 290, track => dirName(track.source)],
+  ["sha256", "SHA-256", 320, track => track.sha256]
 ];
 const minWidth = 56;
 const maxWidth = 840;
@@ -45,18 +46,18 @@ export function mountLibrary(profile, handlers) {
 
   const screen = el("section", {className: "screen library"});
   const counts = el("p", {className: "lede"}, "Opening local index…");
-  const watcherText = profile.sources.length === 1 ? profile.sources[0] : profile.sources.length + " source folders";
+  const watcherText = profile.sources.length === 1 ? profile.sources[0] : profile.sources.length + " " + t("source folders");
   const watcher = el("p", {className: "watching"}, glyph("folder"),
-    el("span", {className: "ellipsis", title: profile.sources.join("\n")}, "Watching: " + watcherText));
+    el("span", {className: "ellipsis", title: profile.sources.join("\n")}, t("Watching: ") + watcherText));
   const start = btn("Start sorting", handlers.sort, {className: "primary", disabled: true});
   const review = btn("Review", handlers.review, {disabled: true});
   function syncActions() {
     review.disabled = indexing || tracks.length === 0;
     start.disabled = review.disabled || Boolean(handlers.sortBusy?.());
-    start.title = handlers.sortBusy?.() ? "A sort is already running. Open sorting progress from the top bar." : "";
+    start.title = handlers.sortBusy?.() ? t("A sort is already running. Open sorting progress from the top bar.") : "";
   }
   handlers.jobEvents?.addEventListener("change", syncActions);
-  screen.append(heading(profile.name, counts, el("div", {className: "actions"}, review, start), watcher));
+  screen.append(heading(raw(profile.name), counts, el("div", {className: "actions"}, review, start), watcher));
   const strip = el("section", {className: "column-strip", id: "column-strip", hidden: true, "aria-label": "Visible table columns"});
   const hint = el("p", {className: "small-text"}, "Choose columns. Drag a header divider or use its arrow keys to resize.");
   const preferenceStatus = el("p", {className: "small-text", role: "status", hidden: true, "aria-live": "polite"});
@@ -106,7 +107,7 @@ export function mountLibrary(profile, handlers) {
   function paintHeaders() {
     header.replaceChildren(...shown().map(([id, label]) => {
       const handle = el("span", {className: "resize", role: "separator", tabindex: "0",
-        "aria-orientation": "vertical", "aria-label": "Resize " + label,
+        "aria-orientation": "vertical", "aria-label": t("Resize {label}", {label: t(label)}),
         "aria-valuemin": minWidth, "aria-valuemax": maxWidth, "aria-valuenow": visible.get(id)});
       function move(value) {
         const newWidth = clampWidth(value);
@@ -152,7 +153,7 @@ export function mountLibrary(profile, handlers) {
   function paintChoices() {
     choices.replaceChildren(...columns.map(([id, label, width]) => {
       const check = el("input", {type: "checkbox", checked: visible.has(id),
-        disabled: visible.has(id) && visible.size === 1, "aria-label": "Show " + label + " column"});
+        disabled: visible.has(id) && visible.size === 1, "aria-label": t("Show {label} column", {label: t(label)})});
       check.addEventListener("change", () => {
         lockWidths();
         if (check.checked) visible.set(id, knownWidths.get(id) ?? width);
@@ -168,7 +169,7 @@ export function mountLibrary(profile, handlers) {
 
   function preferenceMessage(message, error = false) {
     preferenceStatus.hidden = !message;
-    preferenceStatus.textContent = message || "";
+    preferenceStatus.textContent = message ? t(message) : "";
     preferenceStatus.classList.toggle("error", error);
   }
 
@@ -230,7 +231,7 @@ export function mountLibrary(profile, handlers) {
       for (const [id, , , read] of schema) {
         const value = String(read(track) ?? "") || "–";
         row.append(el("div", {className: "grid-cell", role: "gridcell", "data-column": id},
-          el("span", {title: value === "–" ? "" : value}, value)));
+          el("span", {title: value === "–" ? "" : value}, raw(value))));
       }
       fragment.append(row);
     }
@@ -284,20 +285,20 @@ export function mountLibrary(profile, handlers) {
         rows.style.height = tracks.length * rowHeight + "px";
         paintRows(true);
       }
-      counts.textContent = tracks.length.toLocaleString() + (tracks.length === 1 ? " track indexed" : " tracks indexed");
+      counts.textContent = tracks.length.toLocaleString() + (tracks.length === 1 ? " " + t("track indexed") : " " + t("tracks indexed"));
       empty.hidden = tracks.length > 0;
-      empty.textContent = snapshot.indexing ? "Waiting for the index…" : "No tracks found in these folders.";
+      empty.textContent = t(snapshot.indexing ? "Waiting for the index…" : "No tracks found in these folders.");
       const showProgress = snapshot.indexing && snapshot.total > 0 && Number.isInteger(snapshot.completed);
-      status.textContent = snapshot.message || (showProgress
-        ? "Indexing " + snapshot.completed.toLocaleString() + " of " + snapshot.total.toLocaleString() + " files…"
-        : snapshot.indexing ? "Updating index…" : "Index up to date");
+      status.textContent = snapshot.message ? t(snapshot.message) : (showProgress
+        ? t("Indexing ") + snapshot.completed.toLocaleString() + t(" of ") + snapshot.total.toLocaleString() + t(" files…")
+        : snapshot.indexing ? t("Updating index…") : t("Index up to date"));
       indexing = Boolean(snapshot.indexing);
       syncActions();
     },
     revision() { return rev; },
     failed() {
       if (closed) return;
-      status.textContent = "The index could not be refreshed. Checking again…";
+      status.textContent = t("The index could not be refreshed. Checking again…");
       speak(status.textContent);
     },
     flush() { return savedPrefs; },

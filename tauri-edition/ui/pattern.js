@@ -1,4 +1,5 @@
-import {btn, el, glyph} from "./dom.js";
+import {btn, el, glyph, raw} from "./dom.js";
+import {t} from "./i18n.js";
 
 const fields = {
   artist: ["Artist", "Kite Array"], year: ["Year", "2024"], title: ["Title", "Glass Current"],
@@ -22,7 +23,7 @@ function bounded(value, maxUnits, maxBytes) {
 function sanitize(value) {
   const name = bounded(value.normalize("NFKC").replace(/[<>:"/\\|?*\x00-\x1f\x7f-\x9f]/g, "_")
     .trim().replace(/[. ]+$/, ""), 200, 230).replace(/[. ]+$/, "");
-  if (!name) return "Unknown";
+  if (!name) return t("Unknown");
   const stem = name.split(".")[0].trimEnd();
   return /^(CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9]|LPT[1-9])$/i.test(stem)
     ? "_" + bounded(name, 199, 229) : name;
@@ -62,7 +63,7 @@ export function renderPattern(value, changed) {
     }
     tree.replaceChildren(...parts.map((part, depth) => {
       const row = el("div", {className: "example-line"}, depth ? el("span", {className: "branch", "aria-hidden": "true"}, "└") : null,
-        glyph(depth === parts.length - 1 ? "file" : "folder"), el("span", {className: "ellipsis", title: part}, part));
+        glyph(depth === parts.length - 1 ? "file" : "folder"), el("span", {className: "ellipsis", title: part}, raw(part)));
       row.style.setProperty("--depth", depth);
       return row;
     }));
@@ -84,7 +85,7 @@ export function renderPattern(value, changed) {
           }, {"aria-label": "Remove " + name}));
       }
       const input = el("input", {className: "literal", type: "text", maxlength: 240, value: part.text,
-        "aria-label": "Literal text or folder separator " + (i / 2 + 1),
+        "aria-label": t("Literal text or folder separator {number}", {number: i / 2 + 1}),
         placeholder: i === model.length - 1 ? "Text or /" : ""});
       function size() {
         input.style.setProperty("--edit-width", Math.min(180, Math.max(i === model.length - 1 ? 76 : 25, input.value.length * 8 + 15)) + "px");
@@ -122,7 +123,7 @@ export function renderPattern(value, changed) {
   }
 
   for (const [key, [label]] of Object.entries(fields)) {
-    palette.append(btn(label, () => insert(key), {className: "small", "aria-label": "Insert " + label + " field"}));
+    palette.append(btn(label, () => insert(key), {className: "small", "aria-label": t("Insert {label} field", {label: t(label)})}));
   }
   palette.append(btn("Add /", () => insert(null, "/"), {className: "small", "aria-label": "Add folder separator (/)"}));
   const below = el("div", {className: "field-note"}, "Choose a field to insert it. Use / to separate folders.");

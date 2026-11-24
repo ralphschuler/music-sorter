@@ -1,7 +1,8 @@
 import {invoke} from "./bridge.js";
-import {btn, el, errorLine, fileName, heading, replaceScreen, showError, speak} from "./dom.js";
+import {btn, el, errorLine, fileName, heading, raw, replaceScreen, showError, speak} from "./dom.js";
 import {mountLibrary} from "./library.js";
 import {defaultPattern, renderPattern} from "./pattern.js";
+import {getLanguage, setLanguage, t} from "./i18n.js";
 
 const navigation = ["home", "profiles-nav", "settings-nav"].map(id => document.getElementById(id));
 let activeLibrary = null;
@@ -16,6 +17,13 @@ let routeCleanup = null;
 const jobEvents = new EventTarget();
 const jobButton = btn("Sorting progress", () => { if (sortJob) showSortJob(sortJob); }, {className: "plain small job-button", hidden: true});
 document.querySelector(".appbar nav").prepend(jobButton);
+
+function localizeNavigation() {
+  document.getElementById("profiles-nav").textContent = t("Profiles");
+  document.getElementById("settings-nav").textContent = t("Settings");
+  document.querySelector(".appbar nav").setAttribute("aria-label", t("Application"));
+}
+localizeNavigation();
 
 function leave() {
   const id = ++generation;
@@ -34,8 +42,8 @@ function leave() {
 function publishJob(job) {
   jobButton.hidden = false;
   jobButton.textContent = job.result || job.failed
-    ? "Last sort" : job.total > 0 ? `Sorting ${job.completed}/${job.total}` : "Sorting…";
-  jobButton.setAttribute("aria-label", job.result || job.failed ? "View last sort" : "View sorting progress");
+    ? t("Last sort") : job.total > 0 ? t("Sorting {completed}/{total}", job) : t("Sorting…");
+  jobButton.setAttribute("aria-label", job.result || job.failed ? t("View last sort") : t("View sorting progress"));
   if (sortView?.job === job && sortView.id === generation)
     renderSortJob(job, sortView);
   jobEvents.dispatchEvent(new Event("change"));
@@ -44,13 +52,13 @@ function publishJob(job) {
 function sortInProgress() { return Boolean(sortJob?.running); }
 
 function loading(title, message = "Loading…") {
-  const line = el("p", {className: "muted", role: "status"}, message);
+  const line = el("p", {className: "muted", role: "status"}, t(message));
   replaceScreen(el("section", {className: "screen form-screen"}, heading(title), line));
 }
 
 function problem(title, error, back) {
   const line = errorLine();
-  showError(line, error, "The desktop app could not complete that operation.");
+  showError(line, error, t("The desktop app could not complete that operation."));
   replaceScreen(el("section", {className: "screen form-screen"}, heading(title, null, back), line));
 }
 
@@ -74,11 +82,11 @@ async function showProfiles() {
       for (const item of profiles) {
         const sources = item.sources.length;
         const row = el("li", {className: "profile-row"},
-          el("div", {className: "profile-meta"}, el("strong", {title: item.name}, item.name),
-            el("p", {className: "small-text"}, sources === 1 ? "1 source folder" : sources + " source folders")),
+          el("div", {className: "profile-meta"}, el("strong", {title: item.name}, raw(item.name)),
+            el("p", {className: "small-text"}, sources === 1 ? `1 ${t("source folder")}` : `${sources} ${t("source folders")}`)),
           el("div", {className: "actions"},
-            btn("Edit", () => showFolders(newDraft(item)), {className: "plain", "aria-label": "Edit " + item.name}),
-            btn("Open", () => openLibrary(item), {"aria-label": "Open " + item.name})));
+            btn("Edit", () => showFolders(newDraft(item)), {className: "plain", "aria-label": t("Edit {name}", {name: item.name})}),
+            btn("Open", () => openLibrary(item), {"aria-label": t("Open {name}", {name: item.name})})));
         list.append(row);
       }
       screen.append(list);
@@ -124,7 +132,7 @@ async function showFolders(draft, alreadyLeft = false) {
       paths.append(el("li", {className: "path-row"},
         el("span", {className: "path-text", title: path}, path),
         btn("Remove", () => { draft.sources.splice(i, 1); refresh(); },
-          {className: "plain small", disabled: choosing, "aria-label": "Remove source folder " + path})));
+          {className: "plain small", disabled: choosing, "aria-label": t("Remove source folder {path}", {path})})));
     }
     output.value = draft.destination;
     continueButton.disabled = choosing || draft.sources.length === 0 || !draft.destination;
@@ -211,7 +219,7 @@ async function openLibrary(item) {
   const id = leave();
   if (id !== generation) return;
   profile = item;
-  loading(profile.name, "Opening local index…");
+  loading(raw(profile.name), "Opening local index…");
   let initial;
   const opening = profileOpening.then(async () => {
     await libraryClosed;
@@ -220,7 +228,7 @@ async function openLibrary(item) {
   profileOpening = opening.catch(() => {});
   try { initial = await opening; }
   catch (failure) {
-    if (id === generation) problem(item.name, failure, btn("Back to profiles", showProfiles));
+    if (id === generation) problem(raw(item.name), failure, btn("Back to profiles", showProfiles));
     return;
   }
   if (id !== generation) return;
@@ -314,8 +322,8 @@ async function showReview() {
       ? el("p", {className: "lede review-summary"}, attention.length.toLocaleString() + (attention.length === 1 ? " row to review" : " rows to review"))
       : el("p", {className: "lede review-summary"}, "No possible variants or exact duplicates in this plan."));
     screen.append(table(["Track", "Destination", "Plan"], [...attention, ...other], row =>
-      el("tr", {}, el("td", {}, rowLabel(row)), el("td", {}, row.destination ?? "–"),
-        el("td", {}, outcomeLabel(row.status), row.message ? el("p", {className: "small-text"}, row.message) : null))));
+    el("tr", {}, el("td", {}, raw(rowLabel(row))), el("td", {}, raw(row.destination ?? "–")),
+      el("td", {}, outcomeLabel(row.status), row.message ? el("p", {className: "small-text"}, raw(row.message)) : null))));
     replaceScreen(screen);
   } catch (failure) { if (id === generation) problem("Review", failure, back); }
 }
@@ -341,10 +349,10 @@ function renderSortJob(job, state) {
     if (job.total > 0) {
       progress.max = job.total;
       progress.value = job.completed;
-      line.textContent = `${job.completed.toLocaleString()} of ${job.total.toLocaleString()} checked`;
+      line.textContent = t("{completed} of {total} checked", {completed: job.completed.toLocaleString(), total: job.total.toLocaleString()});
     } else {
       progress.removeAttribute("value");
-      line.textContent = "Preparing sorted copies…";
+      line.textContent = t("Preparing sorted copies…");
     }
     return;
   }
@@ -357,13 +365,13 @@ function renderSortJob(job, state) {
   const rows = job.result.rows;
   const copied = rows.filter(row => String(row.outcome).toLowerCase() === "copied").length;
   const issues = rows.filter(row => /conflict|failed/i.test(row.outcome)).length;
-  const detail = copied + (copied === 1 ? " copy made." : " copies made.") +
-    (issues ? " " + issues + " need attention." : "") + " Originals were not changed.";
+  const detail = copied + (copied === 1 ? " " + t("copy made.") : " " + t("copies made.")) +
+    (issues ? " " + issues + " " + t("need attention.") : "") + " " + t("Originals were not changed.");
   const screen = el("section", {className: "screen"}, heading("Sorting results", detail,
     btn("Back to library", () => openLibrary(job.profile), {className: "primary"})));
   screen.append(table(["Track", "Destination", "Outcome"], rows, row =>
-    el("tr", {}, el("td", {}, rowLabel(row)), el("td", {}, row.destination ?? "–"),
-      el("td", {}, outcomeLabel(row.outcome), row.message ? el("p", {className: "small-text"}, row.message) : null))));
+    el("tr", {}, el("td", {}, raw(rowLabel(row))), el("td", {}, raw(row.destination ?? "–")),
+      el("td", {}, outcomeLabel(row.outcome), row.message ? el("p", {className: "small-text"}, raw(row.message)) : null))));
   replaceScreen(screen);
 }
 
@@ -404,7 +412,7 @@ async function startSorting() {
     job.running = false;
     clearTimeout(job.timer);
     publishJob(job);
-    speak(job.failed ? "Sorting stopped. See the last sort for details." : "Sorting finished. Results are available.");
+    speak(job.failed ? t("Sorting stopped. See the last sort for details.") : t("Sorting finished. Results are available."));
   }
 }
 
@@ -429,10 +437,10 @@ async function showSettings() {
     save.disabled = busy || !input.value.trim();
     test.disabled = busy || !source;
     remove.disabled = busy || source !== "keychain";
-    state.textContent = !known ? (busy ? "Checking key configuration…" : "Key configuration could not be checked.")
-      : source === "keychain" ? "A key is saved in the system credential store."
-      : source === "environment" ? "Using the key from ACOUSTID_API_KEY."
-      : "No AcoustID key is configured.";
+    state.textContent = !known ? (busy ? t("Checking key configuration…") : t("Key configuration could not be checked."))
+      : source === "keychain" ? t("A key is saved in the system credential store.")
+      : source === "environment" ? t("Using the key from ACOUSTID_API_KEY.")
+      : t("No AcoustID key is configured.");
   }
 
   async function editKey(mode) {
@@ -450,16 +458,16 @@ async function showSettings() {
       const result = await pending;
       if (mode === "save") {
         readStatus(result);
-        feedback.textContent = "Key saved.";
+        feedback.textContent = t("Key saved.");
       } else if (mode === "test") {
-        feedback.textContent = result.ok ? "The configured key passed the check." : "The configured key could not be verified.";
+        feedback.textContent = result.ok ? t("The configured key passed the check.") : t("The configured key could not be verified.");
       } else {
         readStatus(result);
-        feedback.textContent = source === "environment" ? "Saved key removed. The environment key is still available." : "Saved key removed.";
+        feedback.textContent = source === "environment" ? t("Saved key removed. The environment key is still available.") : t("Saved key removed.");
       }
     } catch {
       // Never render errors returned by credential commands; they might contain credential material.
-      showError(error, mode === "test" ? "The configured key could not be verified." : "The saved key could not be changed.");
+      showError(error, mode === "test" ? t("The configured key could not be verified.") : t("The saved key could not be changed."));
     } finally {
       busy = false;
       if (id === generation) refresh();
@@ -474,7 +482,13 @@ async function showSettings() {
     if (event.key === "Enter" && !save.disabled) { event.preventDefault(); editKey("save"); }
   });
 
+  const language = el("select", {id: "language"},
+    el("option", {value: "en"}, "English"), el("option", {value: "de"}, "Deutsch"),
+    el("option", {value: "es"}, "Español"), el("option", {value: "fr"}, "Français"));
+  language.value = getLanguage();
+  language.addEventListener("change", () => { setLanguage(language.value); showSettings(); });
   replaceScreen(el("section", {className: "screen form-screen"}, heading("Settings"),
+    el("div", {className: "field"}, el("label", {for: "language"}, "Language"), language),
     el("section", {className: "settings-form", "aria-labelledby": "acoustid-heading"},
       el("div", {}, el("h2", {id: "acoustid-heading"}, "AcoustID"),
         el("p", {className: "lede"}, "The app uses a key saved in the system credential store first, then ACOUSTID_API_KEY. Neither is displayed. Testing sends a built-in fingerprint and duration to AcoustID, not anything from your library. Local indexing and sorting do not require a key.")),
@@ -493,4 +507,5 @@ async function showSettings() {
 navigation[0].addEventListener("click", showProfiles);
 navigation[1].addEventListener("click", showProfiles);
 navigation[2].addEventListener("click", showSettings);
+window.addEventListener("music-sorter-language-change", localizeNavigation);
 showProfiles();
